@@ -24,8 +24,8 @@ jobs:
       matrix:
         python-version: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
       - run: make check
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -38,8 +38,8 @@ jobs:
     name: full suite against real PostgreSQL (embedded, no Docker)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
       - run: make install EXTRAS=dev,dashboard,pgtest
       - run: .venv/bin/python scripts/test_postgres.py -q
 
@@ -47,8 +47,8 @@ jobs:
     name: benchmark the open-source Cisco MCP Scanner (YARA analyzer, offline)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
       - run: make setup
       - name: Install the pinned scanner in its own venv and run all four adapters
         run: make cisco-demo
@@ -61,11 +61,12 @@ jobs:
     name: Docker image build + Compose smoke test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Validate docker-compose.yml statically
-        run: docker compose config --quiet
+      - uses: actions/checkout@v7
+      # docker-compose.yml refuses to render without a password and API key, so create .env first.
       - name: Generate local-lab-only credentials for this CI run
         run: python3 scripts/bootstrap_env.py
+      - name: Validate docker-compose.yml statically
+        run: docker compose config --quiet
       - name: Build the image
         run: docker compose build
       - name: Start postgres, api, dashboard
@@ -74,10 +75,12 @@ jobs:
         run: |
           curl -sf http://127.0.0.1:8000/health
           curl -sf http://127.0.0.1:8501/_stcore/health
+      # Run as the runner's own user (like `make docker-demo`) so the container can write into the
+      # bind-mounted reports/ directory, which the checkout owns.
       - name: Seed and run the demo inside the isolated test-runner container
         run: |
-          docker compose --profile tools run --rm test-runner seed-demo
-          docker compose --profile tools run --rm test-runner benchmark run \
+          docker compose --profile tools run --rm --user "$(id -u):$(id -g)" test-runner seed-demo
+          docker compose --profile tools run --rm --user "$(id -u):$(id -g)" test-runner benchmark run \
             --project demo --cases test_cases/ \
             --adapter no-defense-baseline --adapter reference-static --adapter reference-runtime \
             --output reports/ci-demo

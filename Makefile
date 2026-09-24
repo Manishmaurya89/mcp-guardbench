@@ -134,7 +134,7 @@ dashboard: install ## Start the read-only Streamlit dashboard (start `make serve
 
 # ---------------------------------------------------------------- Docker (optional)
 
-docker-config: ## Statically validate docker-compose.yml (needs the docker CLI, not the daemon)
+docker-config: .env ## Statically validate docker-compose.yml (needs the docker CLI, not the daemon)
 	docker compose config --quiet && echo "docker-compose.yml is valid"
 
 docker-up: .env ## Build and start postgres + api + dashboard (ports bound to 127.0.0.1 only)
