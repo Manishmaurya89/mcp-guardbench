@@ -1,18 +1,22 @@
 """The ``guardbench`` command-line interface.
 
-Local security lab only. Every command works on the fixtures shipped in this repository; none
-contacts an external server. Errors are reported as one clear line on stderr with a non-zero exit
-status. The dashboard launcher runs a fixed command without a shell.
+Every lab command works on the fixtures shipped in this repository and contacts no external
+server. The one exception is ``inspect``, which reads the tool list of MCP servers the *user*
+configured (read-only: ``tools/list`` only, no tool is ever called). Errors are reported as one
+clear line on stderr with a non-zero exit status. The dashboard launcher runs a fixed command
+without a shell.
 """
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import json
 import shutil
 import subprocess
 import sys
 from collections.abc import Callable
+from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
@@ -42,9 +46,21 @@ from guardbench.db import models, repositories
 from guardbench.db.migrate import upgrade_to_head
 from guardbench.db.session import create_db_engine, create_session_factory, session_scope
 from guardbench.domain.clock import utc_now
-from guardbench.domain.enums import RunMode
-from guardbench.domain.errors import GuardBenchError
-from guardbench.domain.schemas import ProjectCreate
+from guardbench.domain.enums import RunMode, Severity
+from guardbench.domain.errors import GuardBenchError, InspectionError
+from guardbench.domain.schemas import ProjectCreate, ServerIdentity
+from guardbench.inspection import render as inspect_render
+from guardbench.inspection.client import ServerListing, list_many, tools_from_listing
+from guardbench.inspection.configs import (
+    ConfigLoad,
+    ServerSpec,
+    discover_configs,
+    load_config,
+    load_json_file,
+)
+from guardbench.inspection.pins import PinFile, load_pins, save_pins
+from guardbench.inspection.service import ServerResult
+from guardbench.inspection.service import build_report as build_inspection_report
 from guardbench.logging_config import configure_logging
 from guardbench.mcp_lab.fixtures import create_fixture, fixture_info, fixture_names
 from guardbench.policy.models import load_policy
@@ -61,7 +77,8 @@ DASHBOARD_APP = Path(__file__).resolve().parents[1] / "dashboard" / "app.py"
 
 app = typer.Typer(
     name="guardbench",
-    help="MCP-GuardBench: evaluate security controls for MCP tool-using agents against local fixtures.",
+    help="MCP-GuardBench: check your own MCP servers (`inspect`, read-only) and benchmark MCP security "
+    "controls against local fixtures.",
     no_args_is_help=True,
     add_completion=False,
     rich_markup_mode=None,
@@ -290,6 +307,184 @@ def detect_drift(
     )
     for reason in report.reasons:
         typer.echo(f"  - {reason}")
+
+
+# --------------------------------------------------------------------------- your own MCP servers
+
+
+class FailOn(StrEnum):
+    """Lowest finding severity that makes ``inspect`` exit with status 1."""
+
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+def _unique_specs(loads: list[ConfigLoad]) -> list[ServerSpec]:
+    """Every server from every config; a name used twice gets the client label appended."""
+    specs: list[ServerSpec] = []
+    taken: set[str] = set()
+    for load in loads:
+        for spec in load.servers:
+            name, n = spec.name, 2
+            if name in taken:
+                name = f"{spec.name} ({load.client})"
+            while name in taken:
+                name, n = f"{spec.name} ({load.client} {n})", n + 1
+            taken.add(name)
+            specs.append(dataclasses.replace(spec, name=name))
+    return specs
+
+
+def _offline_listing(path: Path) -> tuple[ServerResult, ServerListing]:
+    name = path.stem
+    tools = tools_from_listing(load_json_file(path, what="tools file"))
+    result = ServerResult(name=name, source=str(path), transport="file", target=str(path))
+    return result, ServerListing(identity=ServerIdentity(name=name), tools=tools)
+
+
+@app.command("inspect")
+@guarded
+def inspect_command(
+    configs: Annotated[
+        list[Path] | None,
+        typer.Argument(
+            help="MCP client config file(s): claude_desktop_config.json, .mcp.json, .cursor/mcp.json, "
+            ".vscode/mcp.json, ...",
+            show_default=False,
+        ),
+    ] = None,
+    discover: Annotated[
+        bool,
+        typer.Option(
+            "--discover",
+            help="Also read the well-known config files of Claude Desktop, Claude Code, Cursor, Windsurf and "
+            "VS Code on this machine.",
+        ),
+    ] = False,
+    tools_json: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--tools-json",
+            help="Offline: analyze a saved tools/list result (JSON) without starting anything. Repeatable.",
+        ),
+    ] = None,
+    server: Annotated[
+        list[str] | None, typer.Option("--server", help="Only inspect this server name. Repeatable.")
+    ] = None,
+    pins: Annotated[
+        Path,
+        typer.Option("--pins", help="Pin file of approved tool fingerprints (written by --update-pins)."),
+    ] = Path("guardbench-pins.json"),
+    update_pins: Annotated[
+        bool,
+        typer.Option(
+            "--update-pins", help="Approve what was seen now: write the current fingerprints to the pin file."
+        ),
+    ] = False,
+    timeout: Annotated[
+        float, typer.Option("--timeout", min=1.0, max=600.0, help="Seconds allowed per server.")
+    ] = 30.0,
+    min_severity: Annotated[
+        Severity, typer.Option("--min-severity", help="Lowest finding severity to print.")
+    ] = Severity.LOW,
+    fail_on: Annotated[
+        FailOn,
+        typer.Option(
+            "--fail-on", help="Exit with status 1 when a finding reaches this severity ('none' never)."
+        ),
+    ] = FailOn.HIGH,
+    details: Annotated[
+        bool, typer.Option("--details", help="List every finding, not only high and critical ones.")
+    ] = False,
+    as_json: Annotated[bool, typer.Option("--json", help="Machine-readable output.")] = False,
+) -> None:
+    """Check the MCP servers in your own client config. Read-only: tools/list only, no tool is called.
+
+    stdio servers are started exactly as your MCP client would start them (same command, arguments,
+    and environment); HTTP servers are contacted at their configured URL. Tool metadata and server
+    instructions are analyzed with the deterministic rules, and fingerprints are compared with the
+    pin file to catch tools that changed after you approved them. Exit status 1 means a server could
+    not be inspected or a finding reached --fail-on.
+    """
+    from guardbench.asyncio_utils import run_sync
+
+    loads: list[ConfigLoad] = [load_config(path, client="config") for path in configs or []]
+    if discover:
+        for client, path in discover_configs():
+            try:
+                loads.append(load_config(path, client=client))
+            except InspectionError as exc:
+                loads.append(
+                    ConfigLoad(source=str(path), client=client, servers=[], problems=[f"skipped: {exc}"])
+                )
+    offline = [_offline_listing(path) for path in tools_json or []]
+    specs = _unique_specs(loads)
+    if server:
+        known = {s.name for s in specs} | {r.name for r, _ in offline}
+        unknown = sorted(set(server) - known)
+        if unknown:
+            raise GuardBenchError(f"unknown server name(s) {unknown}; configured: {sorted(known)}")
+        specs = [s for s in specs if s.name in server]
+        offline = [(r, lst) for r, lst in offline if r.name in server]
+    if not specs and not offline:
+        if discover or configs:
+            raise GuardBenchError("no MCP servers found to inspect")
+        raise GuardBenchError(
+            "give an MCP config file, --discover, or --tools-json (see `guardbench inspect --help`)"
+        )
+
+    pin_file = load_pins(pins)
+    if not as_json:
+        typer.echo(inspect_render.BANNER)
+        for line in inspect_render.render_loads(loads):
+            typer.echo(line)
+        if specs:
+            typer.echo(f"Listing tools of {len(specs)} server(s) (timeout {timeout:g}s each)...")
+        typer.echo("")
+
+    listings: dict[str, ServerListing | InspectionError] = dict(
+        run_sync(lambda: list_many(specs, timeout=timeout)) if specs else {}
+    )
+    results = [
+        ServerResult(name=s.name, source=s.source, transport=s.transport, target=s.display_target())
+        for s in specs
+    ]
+    for result, listing in offline:
+        results.append(result)
+        listings[result.name] = listing
+    report = build_inspection_report(results, listings, pin_file)
+
+    if update_pins:
+        pin_file = pin_file or PinFile()
+        pinned = [r for r in report.servers if r.snapshot is not None]
+        for result in pinned:
+            assert result.snapshot is not None
+            pin_file.pin(result.snapshot)
+        save_pins(pin_file, pins)
+
+    if as_json:
+        typer.echo(json.dumps(_redactor.redact(report.to_dict()), indent=2))
+    else:
+        typer.echo(
+            inspect_render.render_text(
+                report, min_severity=min_severity, details=details, suggest_pinning=not update_pins
+            )
+        )
+        if update_pins:
+            typer.echo(f"Pinned {len(pinned)} server(s) in {pins}.")
+
+    failed = [s.name for s in report.servers if not s.ok]
+    threshold = None if fail_on is FailOn.NONE else Severity(fail_on.value)
+    over = threshold is not None and report.highest is not None and report.highest >= threshold
+    if failed or over:
+        reasons = ([f"{len(failed)} server(s) could not be inspected"] if failed else []) + (
+            [f"a finding reached --fail-on {fail_on.value}"] if over else []
+        )
+        typer.secho(f"Exit status 1: {'; '.join(reasons)}.", fg=typer.colors.YELLOW, err=True)
+        raise typer.Exit(code=1)
 
 
 # --------------------------------------------------------------------------- benchmark

@@ -13,9 +13,12 @@ from types import MappingProxyType
 
 from guardbench.domain.errors import UnknownFixtureError
 from guardbench.mcp_lab.base import LabFixture
+from guardbench.mcp_lab.servers.benign_guidance_server import BenignGuidanceServer
 from guardbench.mcp_lab.servers.clean_server import CleanServer
 from guardbench.mcp_lab.servers.drift_server import DriftServer
+from guardbench.mcp_lab.servers.encoded_flow_server import EncodedFlowServer
 from guardbench.mcp_lab.servers.excessive_permission_server import ExcessivePermissionServer
+from guardbench.mcp_lab.servers.multilingual_poisoning_server import MultilingualPoisoningServer
 from guardbench.mcp_lab.servers.oversized_response_server import OversizedResponseServer
 from guardbench.mcp_lab.servers.poisoned_description_server import PoisonedDescriptionServer
 from guardbench.mcp_lab.servers.poisoned_schema_server import PoisonedSchemaServer
@@ -23,9 +26,12 @@ from guardbench.mcp_lab.servers.response_injection_server import ResponseInjecti
 from guardbench.mcp_lab.servers.secret_flow_server import SecretFlowServer
 
 _FIXTURE_CLASSES: tuple[type[LabFixture], ...] = (
+    BenignGuidanceServer,
     CleanServer,
     DriftServer,
+    EncodedFlowServer,
     ExcessivePermissionServer,
+    MultilingualPoisoningServer,
     OversizedResponseServer,
     PoisonedDescriptionServer,
     PoisonedSchemaServer,

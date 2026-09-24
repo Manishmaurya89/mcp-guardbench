@@ -42,7 +42,7 @@ async def test_a_full_run_completes_every_pair_with_no_errors_and_no_network_att
     """The autouse guard raises on any socket use; the orchestrator would record that as an ERROR
     result. So zero errors proves no code path even *tried* to reach the network."""
     out = await full_run()
-    assert len(out.results) == 27
+    assert len(out.results) == 36
     assert all(r.status is ResultStatus.COMPLETED for r in out.results), [
         (r.adapter_name, r.test_case_id, r.error)
         for r in out.results

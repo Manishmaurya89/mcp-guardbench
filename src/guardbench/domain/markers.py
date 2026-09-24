@@ -7,6 +7,7 @@ never accepted as a test-case marker.
 
 from __future__ import annotations
 
+import base64
 import re
 from dataclasses import dataclass
 from enum import StrEnum
@@ -47,6 +48,31 @@ SYNTHETIC_MARKERS: tuple[SyntheticMarker, ...] = (
 MARKER_VALUES: frozenset[str] = frozenset(m.value for m in SYNTHETIC_MARKERS)
 _BY_VALUE: dict[str, SyntheticMarker] = {m.value: m for m in SYNTHETIC_MARKERS}
 _BY_ID: dict[str, SyntheticMarker] = {m.marker_id: m for m in SYNTHETIC_MARKERS}
+
+
+def base64_form(value: str) -> str:
+    """Standard base64 of ``value``: how the encoded-leak fixture presents a marker."""
+    return base64.b64encode(value.encode()).decode("ascii")
+
+
+def encoded_forms(value: str) -> tuple[str, ...]:
+    """Common reversible encodings of a marker value: base64 (padded, unpadded, URL-safe) and hex.
+
+    Used by fixture *ground truth* only, so a marker that leaves a fixture encoded is still recorded
+    as a leak. The controls under test do not use this; whether they catch encoded data is measured.
+    A marker is recognized when it was encoded on its own, not as part of a longer encoded string.
+    """
+    raw = value.encode()
+    padded = base64_form(value)
+    forms = {padded, padded.rstrip("="), base64.urlsafe_b64encode(raw).decode("ascii").rstrip("="), raw.hex()}
+    forms.add(raw.hex().upper())
+    return tuple(sorted(forms))
+
+
+#: Marker value -> its encoded forms (see :func:`encoded_forms`).
+ENCODED_MARKER_FORMS: dict[str, tuple[str, ...]] = {
+    m.value: encoded_forms(m.value) for m in SYNTHETIC_MARKERS
+}
 
 
 def marker_for_value(value: str) -> SyntheticMarker | None:

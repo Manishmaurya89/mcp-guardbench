@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from guardbench.benchmark import cisco_scanner as cisco
 from guardbench.benchmark.guards import RuntimePolicyGuard, StaticAnalyzerGuard
 from guardbench.benchmark.result_normalizer import claim_result
 from guardbench.benchmark.runner import GroundTruth, Guard, PassthroughGuard, ScenarioRun, ScenarioRunner
@@ -160,6 +161,41 @@ class ReferenceRuntimePolicyAdapter(GuardAdapter):
         return RuntimePolicyGuard()
 
 
+class CiscoMcpScannerAdapter(GuardAdapter):
+    """Cisco AI Defense MCP Scanner (open source), YARA analyzer only, run as an external program.
+
+    The scanner itself is not a dependency of this project; see :mod:`guardbench.benchmark.cisco_scanner`.
+    """
+
+    name = "cisco-mcp-scanner"
+    limitations = (
+        "Third-party control, run unmodified (YARA analyzer only; its API, LLM and VirusTotal analyzers "
+        "are not used). Results describe that configuration only.",
+        "Static metadata scanning: it cannot see tool responses, call arguments, or runtime data flow, and "
+        "it has no notion of an approved baseline, so it cannot detect drift as such.",
+        "Alert-only: it is not in the call path, so an alert never stops an unsafe action.",
+        "It reports which rule matched, but not the matched text or where it was found.",
+        "The category mapping from its threat names to GuardBench categories is this project's and is "
+        "documented in guardbench.benchmark.cisco_scanner.THREAT_CATEGORIES.",
+    )
+
+    def __init__(self) -> None:
+        self._executable: str | None = None
+        self.version = ADAPTER_VERSION
+
+    async def prepare(self, context: AdapterContext) -> None:
+        """Find the scanner (or report it unavailable), then create the guard."""
+        if self._executable is None:
+            self._executable = cisco.locate_scanner()
+            self.version = f"{ADAPTER_VERSION}+{cisco.PACKAGE}-{cisco.scanner_version(self._executable)}"
+        await super().prepare(context)
+
+    def make_guard(self) -> Guard:
+        """A fresh alert-only guard around the located scanner."""
+        assert self._executable is not None, "prepare() must run first"
+        return cisco.CiscoScannerGuard(self._executable)
+
+
 class ExternalScannerAdapter(ABC):
     """Documented extension point for third-party scanners (see ``docs/adapter-development.md``).
 
@@ -213,6 +249,7 @@ ADAPTER_FACTORIES: dict[str, AdapterFactory] = {
     NoDefenseBaselineAdapter.name: NoDefenseBaselineAdapter,
     ReferenceStaticAnalyzerAdapter.name: ReferenceStaticAnalyzerAdapter,
     ReferenceRuntimePolicyAdapter.name: ReferenceRuntimePolicyAdapter,
+    CiscoMcpScannerAdapter.name: CiscoMcpScannerAdapter,
     UnavailableExternalAdapter.name: UnavailableExternalAdapter,
 }
 

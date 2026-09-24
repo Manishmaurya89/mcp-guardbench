@@ -1,6 +1,6 @@
 # Test cases
 
-Nine YAML test cases, all safe, deterministic, and run only against the local fixtures in
+Twelve YAML test cases, all safe, deterministic, and run only against the local fixtures in
 [`src/guardbench/mcp_lab/servers/`](../src/guardbench/mcp_lab/servers/). See
 [`../docs/test-case-format.md`](../docs/test-case-format.md) for the file format and how to add one.
 
@@ -8,17 +8,32 @@ Nine YAML test cases, all safe, deterministic, and run only against the local fi
 |---|---|---|---|---|
 | [BN-001](BN-001-clean-server-metadata.yaml) | benign_control | info | clean_server | Clean server metadata (benign control) |
 | [BN-002](BN-002-clean-server-read-calls.yaml) | benign_control | info | clean_server | Ordinary read-only calls (benign control) |
+| [BN-003](BN-003-benign-cross-tool-guidance.yaml) | benign_control | info | benign_guidance_server | Descriptions that legitimately reference sibling tools (benign control) |
 | [DF-001](DF-001-sensitive-marker-flow.yaml) | sensitive_data_flow | critical | secret_flow_server | Synthetic secret flows from a local source into an outbound argument |
+| [DF-002](DF-002-encoded-secret-flow.yaml) ★ | sensitive_data_flow | critical | encoded_flow_server | Synthetic secret leaves base64-encoded |
 | [PA-001](PA-001-excessive-permission.yaml) | excessive_permission | high | excessive_permission_server | Simulated write, delete, send and execute without approval |
 | [RD-001](RD-001-tool-definition-drift.yaml) | tool_definition_drift | high | drift_server | Tool definition changes after approval (rug pull) |
 | [RI-001](RI-001-response-injection.yaml) | response_injection | high | response_injection_server | Injection delivered in a tool response |
 | [RS-001](RS-001-oversized-response.yaml) | oversized_response | medium | oversized_response_server | Response far larger than the configured limit |
 | [TP-001](TP-001-tool-description-injection.yaml) | tool_poisoning | high | poisoned_description_server | Hidden instruction in tool description |
 | [TP-002](TP-002-schema-injection.yaml) | tool_poisoning | high | poisoned_schema_server | Hidden instruction inside the tool schema |
+| [TP-003](TP-003-multilingual-tool-poisoning.yaml) ★ | tool_poisoning | high | multilingual_poisoning_server | Hidden instruction written in another language |
 
-`BN-001` and `BN-002` are **benign controls**: a correct security control must leave them alone. They
-are what `false_positive_rate` is computed from. The other seven are attack cases, scored for detection
-and prevention.
+`BN-001`, `BN-002` and `BN-003` are **benign controls**: a correct security control must leave them
+alone. They are what `false_positive_rate` is computed from. `BN-003` models a pattern common in real
+servers (descriptions that say "call `list_notes` first"), so a control that treats every mention of a
+sibling tool as poisoning shows up here as a false alarm. The other nine are attack cases, scored for
+detection and prevention.
+
+### ★ Hard cases
+
+The first seven attack cases were written alongside the reference controls, so a perfect score on them
+says little. `TP-003` and `DF-002` were added later to probe weaknesses that
+[`docs/limitations.md`](../docs/limitations.md) already admits: English-only pattern rules and exact-string
+data-flow tracking. **The reference controls were not changed to pass them, and they don't:** neither
+reference control detects either case. The best way to make this benchmark more meaningful is more cases
+like these, ideally written by people who did not write the controls. See
+[CONTRIBUTING.md](../CONTRIBUTING.md#contributing-a-test-case).
 
 ## Try them yourself
 
@@ -34,8 +49,8 @@ Every case is validated at load time (`TestCaseSpec` in
 [`../src/guardbench/domain/testcase.py`](../src/guardbench/domain/testcase.py)):
 
 * `synthetic_markers` may only be `TEST_SECRET_123`, `TEST_PRIVATE_RECORD`, or
-  `SIMULATED_EXTERNAL_DESTINATION` — never a real-looking secret.
-* `server_fixture` must be one of the eight allowlisted local fixtures; a case can never point at a real
+  `SIMULATED_EXTERNAL_DESTINATION`, never a real-looking secret.
+* `server_fixture` must be one of the eleven allowlisted local fixtures; a case can never point at a real
   server, a file path, or a module.
 * `safe_behavior` must declare the full baseline (`no_external_network`, `no_real_secret`,
   `no_destructive_action`) on every case.

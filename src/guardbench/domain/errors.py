@@ -47,3 +47,7 @@ class AdapterUnavailableError(AdapterError):
 
 class FixtureSafetyError(GuardBenchError):
     """A fixture attempted something outside the lab's safety contract."""
+
+
+class InspectionError(GuardBenchError):
+    """An MCP client config, tools file, or pin file could not be read, or a server could not be listed."""

@@ -127,10 +127,10 @@ def test_seed_demo_registers_every_fixture_approves_baselines_and_stages_drift(e
     initialized(env)
     result = run("seed-demo")
     assert result.exit_code == 0, result.output
-    assert "8 fixture servers" in result.output and "drift_server" in result.output
+    assert "11 fixture servers" in result.output and "drift_server" in result.output
     with session_for(env) as session:
         servers = {s.name: s for s in session.query(models.MCPServer).all()}
-        assert len(servers) == 8
+        assert len(servers) == 11
         drift = servers["drift_server"]
         assert drift.lab_phase == 1 and drift.trust_status == "quarantined"
         assert repositories.approved_baseline(session, drift.id) is not None
@@ -147,7 +147,7 @@ def test_seed_demo_is_idempotent(env: dict[str, Path]) -> None:
     assert run("seed-demo").exit_code == 0
     assert run("seed-demo").exit_code == 0
     with session_for(env) as session:
-        assert session.query(models.MCPServer).count() == 8
+        assert session.query(models.MCPServer).count() == 11
         assert session.query(models.Project).count() == 1
         assert (
             session.query(models.ToolSnapshot)
@@ -163,9 +163,11 @@ def test_seed_demo_is_idempotent(env: dict[str, Path]) -> None:
 def test_list_test_cases_shows_the_corpus(env: dict[str, Path]) -> None:
     result = run("list-test-cases")
     assert result.exit_code == 0
-    for case_id in ("TP-001", "TP-002", "RI-001", "RD-001", "DF-001", "PA-001", "RS-001", "BN-001", "BN-002"):
+    for case_id in ("TP-001", "TP-002", "TP-003", "RI-001", "RD-001", "DF-001", "DF-002", "PA-001", "RS-001"):
         assert case_id in result.output
-    assert "9 test case(s)." in result.output
+    for case_id in ("BN-001", "BN-002", "BN-003"):
+        assert case_id in result.output
+    assert "12 test case(s)." in result.output
 
 
 def test_list_test_cases_refuses_directories_outside_the_allowed_root(
@@ -251,7 +253,7 @@ def test_benchmark_run_prints_metrics_and_writes_reports(env: dict[str, Path]) -
         str(env["reports"] / "demo-run"),
     )
     assert result.exit_code == 0, result.output
-    assert "reference-runtime" in result.output and "100.0%" in result.output and "57.1%" in result.output
+    assert "reference-runtime" in result.output and "88.9%" in result.output and "44.4%" in result.output
     assert "actually" in result.output and "blocked" in result.output
     folder = env["reports"] / "demo-run"
     assert {p.name for p in folder.iterdir()} == {"report.json", "report.md", "summary.csv"}

@@ -6,7 +6,7 @@ A test case is one YAML file in `test_cases/`, validated into a `TestCaseSpec`
 ([`benchmark/test_case_loader.py`](../src/guardbench/benchmark/test_case_loader.py)) then checks the
 `server_fixture` name against the static fixture allowlist and rejects duplicate `id`s across the
 directory. The filename is conventional (id + a short slug, e.g. `DF-001-sensitive-marker-flow.yaml`)
-but is not itself validated — `id:` inside the file is what's authoritative.
+but is not itself validated: `id:` inside the file is what's authoritative.
 
 ## Full example
 
@@ -65,15 +65,15 @@ This is the real file at [`test_cases/DF-001-sensitive-marker-flow.yaml`](../tes
 | `name` | str | 3–200 characters. |
 | `category` | `FindingCategory` | See vocabulary below. `benign_control` marks a case that must *not* be detected. |
 | `severity` | `Severity` | `info` \| `low` \| `medium` \| `high` \| `critical`. |
-| `description` | str | 10–4000 characters. Rejected if it contains a real-credential *shape* (see [`markers.py`](../src/guardbench/domain/markers.py)) — descriptions may only reference the synthetic markers. |
+| `description` | str | 10–4000 characters. Rejected if it contains a real-credential *shape* (see [`markers.py`](../src/guardbench/domain/markers.py)); descriptions may only reference the synthetic markers. |
 | `attack_stage` | `AttackStage` | `registration` \| `tools_list` \| `tool_call` \| `tool_response` \| `server_update`. |
 | `server_fixture` (alias `fixture`) | str | Must be an allowlisted fixture name (`guardbench list-fixtures`). Never a path. |
-| `synthetic_markers` | list[str] | Every entry must be one of the three markers below — unknown values are rejected. |
+| `synthetic_markers` | list[str] | Every entry must be one of the three markers below; unknown values are rejected. |
 | `expected` | object | See below. |
-| `safe_behavior` | list[`SafeBehavior`] | Must list **every** value of the enum (`no_external_network`, `no_real_secret`, `no_destructive_action`) — a case cannot opt out of the baseline safety contract. |
+| `safe_behavior` | list[`SafeBehavior`] | Must list **every** value of the enum (`no_external_network`, `no_real_secret`, `no_destructive_action`); a case cannot opt out of the baseline safety contract. |
 | `tags` | list[str] | Free-form, `^[a-z0-9][a-z0-9_\-]{0,40}$`. |
 | `scenario` | list[step] | ≤ 20 steps. See below. |
-| `allow_simulated_destructive` | bool | Default `false`. Set `true` only when the case deliberately exercises a delete/execute path; it still never auto-approves anything — an unattended run still holds it at `require_approval`/`deny`. |
+| `allow_simulated_destructive` | bool | Default `false`. Set `true` only when the case deliberately exercises a delete/execute path; it still never auto-approves anything: an unattended run still holds it at `require_approval`/`deny`. |
 | `enabled` | bool | Default `true`. |
 
 ### `expected`
@@ -94,12 +94,12 @@ Three actions, deterministic, no LLM and no `eval`:
 | Action | Fields | Notes |
 |---|---|---|
 | `list_tools` | `pin_baseline` (bool) | `pin_baseline: true` records the current tool set as the case's baseline (used by drift cases). |
-| `call_tool` | `tool` (required), `arguments` (dict) | `arguments` may use the literal string `$LAST_RESULT`, replaced with the text of the previous tool response — string substitution, not code execution. |
-| `advance_fixture_state` | — | Moves a stateful fixture (only `drift_server` today) to its next deterministic phase. |
+| `call_tool` | `tool` (required), `arguments` (dict) | `arguments` may use the literal string `$LAST_RESULT`, replaced with the text of the previous tool response (string substitution, not code execution. |
+| `advance_fixture_state` | (none) | Moves a stateful fixture (only `drift_server` today) to its next deterministic phase. |
 
 `if_model_context_contains` (string, ≤ 200 chars, `call_tool` steps only) models a "gullible agent": the
 step only fires if that text actually reached the model context in this run. A control that keeps
-hostile content out of context also prevents any scripted follow-up — without ever calling an LLM.
+hostile content out of context also prevents any scripted follow-up, without ever calling an LLM.
 
 ## Vocabularies
 
@@ -116,7 +116,7 @@ hostile content out of context also prevents any scripted follow-up — without 
 
 ## Validation, in order
 
-1. Pydantic parses the YAML into `TestCaseSpec` — unknown fields are rejected (`extra="forbid"`).
+1. Pydantic parses the YAML into `TestCaseSpec`; unknown fields are rejected (`extra="forbid"`).
 2. Field validators check the `id` pattern, the fixture-name pattern, that every synthetic marker is
    known, that `safe_behavior` lists the full baseline, that tags match their pattern, that the
    scenario has ≤ 20 steps and that no step's arguments contain a real-credential shape.
@@ -139,7 +139,7 @@ A file that fails any of these steps is rejected with a specific error: `guardbe
    behavior. Use `$LAST_RESULT` to pass the previous tool response along; don't add new templating.
 4. Only use the three synthetic markers; never a value that looks like a real secret.
 5. Set `expected.required_evidence` to what a correct control would actually be able to produce for this
-   case — this is what `evidence_completeness_rate` measures against.
+   case; this is what `evidence_completeness_rate` measures against.
 6. Run `guardbench list-test-cases` to confirm it loads, then `guardbench benchmark run --case-id
    YOUR-ID --adapter reference-runtime --adapter no-defense-baseline --no-persist` to sanity-check it
    against both ends of the spectrum: the baseline must fail it, and the reference adapter should behave

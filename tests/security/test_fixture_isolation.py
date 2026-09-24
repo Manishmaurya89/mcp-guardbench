@@ -68,7 +68,7 @@ def imported_top_level(tree: ast.Module) -> set[str]:
 
 
 def test_the_fixture_directory_contains_exactly_the_registered_fixtures() -> None:
-    assert len(SERVER_FILES) == len(REGISTRY) == 8
+    assert len(SERVER_FILES) == len(REGISTRY) == 11
     assert {p.stem for p in SERVER_FILES} == {
         create_fixture(n).__class__.__module__.rsplit(".", 1)[-1] for n in fixture_names()
     }

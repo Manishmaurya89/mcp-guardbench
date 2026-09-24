@@ -33,7 +33,7 @@ Each layer only depends on the ones below it. The domain layer has no framework 
                │                      │                     │
         ┌──────▼──────┐        ┌──────▼───────┐     ┌───────▼────────┐
         │ mcp_lab/     │        │ runtime/      │     │ db/             │
-        │ 8 fixture    │        │ recorder,     │     │ SQLAlchemy 2.x  │
+        │ 11 fixture   │        │ recorder,     │     │ SQLAlchemy 2.x  │
         │ servers,     │        │ redaction,    │     │ models, Alembic │
         │ client_runner│        │ data_flow,    │     │ migrations,     │
         │ (real MCP    │        │ event_bus     │     │ Postgres+SQLite │
@@ -62,6 +62,19 @@ Each layer only depends on the ones below it. The domain layer has no framework 
 it contains the only code that behaves like an attacker, it is import-restricted (see below), and
 nothing outside `benchmark/` and the CLI's inspection commands depends on it.
 
+Two more pieces sit beside the lab rather than inside it:
+
+* **`inspection/`** powers `guardbench inspect`, the one feature that looks at servers *outside* the lab:
+  the MCP servers a user configured. `configs.py` reads Claude Desktop, Claude Code, Cursor, Windsurf and
+  VS Code config files; `client.py` starts or contacts each server and requests `tools/list` (nothing
+  else: `tests/security/test_inspection_readonly.py` checks the source for any call, resource, or prompt
+  operation); `service.py` runs the same `analysis/` functions the benchmark uses and compares fingerprints
+  with a pin file (`pins.py`); `render.py` escapes everything a server sent before it reaches a terminal.
+  It does not import `mcp_lab/` and does not use the database.
+* **`benchmark/cisco_scanner.py`** runs a third-party control, Cisco AI Defense's open-source MCP Scanner,
+  as a separate process in its own virtual environment. It plugs into the same `Guard` hook as the
+  reference static analyzer, so it sees exactly the same tool listings and is scored by the same rules.
+
 ## Domain entities
 
 Every entity below exists as both a Pydantic v2 schema (`domain/schemas.py`) and a SQLAlchemy 2.x model
@@ -71,30 +84,30 @@ fallback (`JSONType`), and indexes exist on `run_id`, `trace_id`, `server_id`, `
 and `created_at` (see the naming convention and indexes in `db/base.py` / `db/models.py` and the initial
 migration).
 
-* **Project** — id, name, description, created_at. The top-level grouping for servers and runs.
-* **MCPServer** — id, project_id, name, transport, endpoint, source_type, version, trust_status,
+* **Project**: id, name, description, created_at. The top-level grouping for servers and runs.
+* **MCPServer**: id, project_id, name, transport, endpoint, source_type, version, trust_status,
   created_at, plus `lab_phase` (drives the deterministic rug-pull demo).
-* **ToolDefinition** — id, server_id, name, description, input_schema, output_schema, annotations,
+* **ToolDefinition**: id, server_id, name, description, input_schema, output_schema, annotations,
   definition_hash, observed_at.
-* **ToolSnapshot** — id, server_id, snapshot_hash, normalized_tools_json, created_at. What fingerprinting
+* **ToolSnapshot**: id, server_id, snapshot_hash, normalized_tools_json, created_at. What fingerprinting
   and drift detection compare.
-* **TestCase** — id, external_id (the human-readable `TP-001` style id), name, category, severity,
+* **TestCase**: id, external_id (the human-readable `TP-001` style id), name, category, severity,
   description, yaml_path, expected_behaviors, enabled. Mirrors `TestCaseSpec` in the database for
   auditability; the YAML file under `test_cases/` remains the source of truth.
-* **BenchmarkRun** — id, project_id, status, started_at, completed_at, configuration_json, summary_json.
-* **Event** — id, run_id, trace_id, parent_event_id, timestamp, event_type, source, server_name,
+* **BenchmarkRun**: id, project_id, status, started_at, completed_at, configuration_json, summary_json.
+* **Event**: id, run_id, trace_id, parent_event_id, timestamp, event_type, source, server_name,
   tool_name, payload_json, redacted_payload_json, risk_tags, decision. The append-only evidence log.
-* **Finding** — id, run_id, test_case_id, title, category, severity, confidence, status, description,
+* **Finding**: id, run_id, test_case_id, title, category, severity, confidence, status, description,
   evidence_json, remediation, created_at.
-* **Metric** — id, run_id, metric_name, metric_value, unit, dimensions_json.
+* **Metric**: id, run_id, metric_name, metric_value, unit, dimensions_json.
 
 ## Why the layering matters for security
 
 * **Domain has no framework dependency.** Validation (test-case safety rules, marker allowlists,
   credential-shape rejection) lives here and runs identically whether it's called from the CLI, the API,
-  or a test — there's exactly one place a rule can be bypassed, and it's covered by unit tests.
+  or a test: there's exactly one place a rule can be bypassed, and it's covered by unit tests.
 * **Analysis is pure.** The static analyzer, fingerprinting, and drift detection take data in and return
-  data out — no I/O, no network, no state. That's what makes them deterministic (a re-run with the same
+  data out, with no I/O, no network, no state. That's what makes them deterministic (a re-run with the same
   input always produces the same findings) and safe to fuzz/test exhaustively.
 * **Runtime is the only place redaction happens**, and it happens on the way *in* (before a payload is
   ever stored as `redacted_payload_json`), not as a filter applied on the way out. The API additionally
@@ -103,7 +116,7 @@ migration).
 * **`mcp_lab/` is quarantined.** Fixture source files may only import `typing`, `sqlite3`, and
   `guardbench` itself (checked by AST in `tests/security/test_fixture_isolation.py`); no fixture opens a
   socket, spawns a process, touches a real file, or reads the real clock. A fixture is instantiated only
-  through the static `REGISTRY` — a name is looked up as a dict key, never turned into an import path or
+  through the static `REGISTRY`: a name is looked up as a dict key, never turned into an import path or
   a shell command.
 * **The API is thin.** Routes validate input/output with Pydantic, get a database session through
   FastAPI's dependency injection, and delegate everything else to `services/`. Business logic that needs

@@ -67,8 +67,10 @@ def test_the_shipped_corpus_loads_and_covers_every_required_case() -> None:
     cases = load_test_cases(TEST_CASES_DIR, allowed_root=TEST_CASES_DIR)
     ids = [c.spec.id for c in cases]
     assert ids == sorted(ids)
-    assert {"TP-001", "TP-002", "RI-001", "RD-001", "DF-001", "PA-001", "RS-001"} <= set(ids)
-    assert {c.spec.id for c in cases if not c.spec.is_attack_case} == {"BN-001", "BN-002"}
+    assert {"TP-001", "TP-002", "TP-003", "RI-001", "RD-001", "DF-001", "DF-002", "PA-001", "RS-001"} <= set(
+        ids
+    )
+    assert {c.spec.id for c in cases if not c.spec.is_attack_case} == {"BN-001", "BN-002", "BN-003"}
 
 
 def test_every_shipped_case_declares_the_baseline_safety_constraints_and_uses_only_synthetic_markers() -> (

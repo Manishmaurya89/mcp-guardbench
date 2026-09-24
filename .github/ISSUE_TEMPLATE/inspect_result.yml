@@ -1,0 +1,41 @@
+name: guardbench inspect result on a real server
+description: A false alarm, a miss, or a server that could not be inspected.
+labels: [inspect]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Reports from real servers are how the analyzer's rules get better. **Remove anything private
+        before posting:** tokens, internal URLs, file paths, and the `env`/`headers` of your MCP config.
+        `guardbench inspect --json` never prints configured env values or headers, but check anyway.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What happened?
+      options:
+        - False alarm (a finding on a server you believe is fine)
+        - Missed something (a hostile description or instruction that was not flagged)
+        - The server could not be inspected (error, timeout)
+    validations:
+      required: true
+  - type: input
+    id: server
+    attributes:
+      label: Server
+      description: Public package name and version, e.g. `@modelcontextprotocol/server-filesystem 2026.1.0`.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Relevant output
+      description: The finding lines (rule id, tool, evidence) or the error message.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why you think this is wrong
+    validations:
+      required: true

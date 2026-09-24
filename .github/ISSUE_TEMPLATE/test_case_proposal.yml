@@ -1,0 +1,56 @@
+name: Propose a test case (new attack or benign pattern)
+description: An MCP attack, or a benign real-world pattern, that the benchmark should cover.
+labels: [test-case, good first issue]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the contribution that makes the benchmark most meaningful. Cases written by people who
+        did **not** write the reference controls are the only way to learn how they really do: see the
+        "hard cases" in [test_cases/README.md](../../test_cases/README.md#-hard-cases).
+
+        Keep it inside the lab's safety rules ([SECURITY.md](../../SECURITY.md)): describe the attack
+        against a *synthetic* fixture, use only the synthetic markers (`TEST_SECRET_123`,
+        `TEST_PRIVATE_RECORD`, `SIMULATED_EXTERNAL_DESTINATION`), and never include a working exploit
+        against a real server.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of case?
+      options:
+        - Attack the current controls probably miss
+        - Attack in a category not covered yet (resources, prompts, sampling, auth, multi-server, ...)
+        - Benign real-world pattern that might cause false alarms
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: The attack (or pattern) in one paragraph
+      description: What does the server advertise or return, and what would a gullible agent do?
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example tool metadata or response (synthetic)
+      description: The hostile description, schema, or response text. Mark hostile text with GUARDBENCH-SYNTHETIC-INJECTION.
+      render: json
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: Which category should a good control detect it as, and should it be blocked?
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Where this comes from (optional)
+      description: A paper, advisory, blog post, or real server this pattern was seen in.
+  - type: checkboxes
+    id: pr
+    attributes:
+      label: Contribution
+      options:
+        - label: I'd like to open a pull request with the fixture and YAML myself.

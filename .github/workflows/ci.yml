@@ -43,6 +43,20 @@ jobs:
       - run: make install EXTRAS=dev,dashboard,pgtest
       - run: .venv/bin/python scripts/test_postgres.py -q
 
+  cisco-scanner:
+    name: benchmark the open-source Cisco MCP Scanner (YARA analyzer, offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: make setup
+      - name: Install the pinned scanner in its own venv and run all four adapters
+        run: make cisco-demo
+      - name: The live adapter test must agree with the published results
+        run: .venv/bin/python -m pytest -q tests/integration/test_cisco_scanner_adapter.py
+        env:
+          GUARDBENCH_CISCO_MCP_SCANNER: .venv-scanners/bin/mcp-scanner
+
   docker:
     name: Docker image build + Compose smoke test
     runs-on: ubuntu-latest

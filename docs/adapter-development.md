@@ -1,7 +1,7 @@
 # Adapter development
 
-An adapter is how a security control — a static scanner, a runtime monitor, a gateway, a client
-configuration — is evaluated against the local fixtures under identical conditions. This page covers
+An adapter is how a security control (a static scanner, a runtime monitor, a gateway, a client
+configuration) is evaluated against the local fixtures under identical conditions. This page covers
 both ways to add one: as a **guard** driven by the built-in scenario runner (what the three reference
 adapters do), or as a **fully external process/tool** wrapped in your own `execute()`.
 
@@ -15,14 +15,14 @@ internally: `adapter_name`, `adapter_version`, `test_case_id`, `started_at`/`com
 `approvals_required`, `unsafe_outcomes`, `evidence_kinds_present`, `expectation_met`, `claim_mismatches`.
 
 **Vendor-specific scores are never compared.** Whatever a tool reports internally, your adapter's job is
-to translate it into this shape — and even then, `detected` and `blocked` on the object your `execute()`
+to translate it into this shape, and even then `detected` and `blocked` on the object your `execute()`
 returns are treated as a *claim*. The orchestrator verifies that claim before scoring
 ([`result_normalizer.py`](../src/guardbench/benchmark/result_normalizer.py)):
 
 * `detected` is recomputed from `findings` that carry real evidence and match the test case's expected
   category, at or above the configured minimum severity. Claiming detection with no qualifying findings
   is recorded in `claim_mismatches`, not trusted.
-* `blocked` (prevention) is read from the fixture's own ledger of what actually executed — **never**
+* `blocked` (prevention) is read from the fixture's own ledger of what actually executed, **never**
   from your adapter's claim. If your adapter didn't run the scenario through the GuardBench runner (so
   no ground truth exists), the case is reported as **not blocked**, with a limitation noting that
   prevention could not be verified.
@@ -42,7 +42,7 @@ class SecurityAdapter(Protocol):
 
 (`src/guardbench/benchmark/adapters.py`). `AdapterContext` carries everything a case needs: the live
 `fixture`, the `recorder` and `tracker`, the `approvals` service, the `policy_config`, the run `mode`
-(`unattended` never approves anything), the response-size limit, and — for guard-based adapters — the
+(`unattended` never approves anything), the response-size limit, and, for guard-based adapters, the
 `Guard` for this case.
 
 ## Path A: a guard driven by the scenario runner (recommended for anything that inspects the same
@@ -103,10 +103,34 @@ class MyAdapter(GuardAdapter):
 
 `GuardAdapter.execute()` already does the rest: it runs the scenario through `ScenarioRunner`, times it,
 and calls `claim_result()` to build the `AdapterResult`. Study
-[`guards.py`](../src/guardbench/benchmark/guards.py) — `StaticAnalyzerGuard` (alert-only,
+[`guards.py`](../src/guardbench/benchmark/guards.py), with `StaticAnalyzerGuard` (alert-only,
 `before_call` always allows) and `RuntimePolicyGuard` (in-path enforcement using
-[`policy/engine.py`](../src/guardbench/policy/engine.py)) — before writing your own; most new static or
+[`policy/engine.py`](../src/guardbench/policy/engine.py)), before writing your own; most new static or
 runtime controls fit this pattern.
+
+### A worked example: wrapping a real third-party scanner
+
+[`cisco_scanner.py`](../src/guardbench/benchmark/cisco_scanner.py) wraps Cisco AI Defense's open-source
+MCP Scanner, and it is the pattern to copy for any external *static* scanner. A Path A guard does not have
+to be in-process code: its `on_tools_listed` writes the listing to a temporary `tools/list` JSON file, runs
+the scanner as a subprocess, and turns the scanner's output into `Finding` objects. Because it goes
+through the runner, the external tool sees exactly the listings the reference analyzer sees, and
+prevention is verified from ground truth like everyone else's. Points worth copying:
+
+* **Keep the tool out of this project's dependencies.** Locate it on `PATH` or through an environment
+  variable (`GUARDBENCH_CISCO_MCP_SCANNER`), and raise `AdapterUnavailableError` with install instructions
+  when it is missing, so its cases are *skipped*, not scored. `make cisco-demo` installs it into a separate
+  virtual environment.
+* **Keep it offline and credential-free.** Enable only analyzers that run locally, and strip
+  credential-like environment variables before starting the subprocess.
+* **Write the mapping down.** The translation from the vendor's labels to `FindingCategory` is yours; keep
+  it in one table (`THREAT_CATEGORIES`) and send unknown labels to a category no attack case expects, so a
+  new label can never inflate detection.
+* **Record the version.** The adapter reports the scanner's installed version in `adapter_version`, so a
+  report says exactly what was measured.
+* **Test it without the tool.** `tests/integration/test_cisco_scanner_adapter.py` drives the adapter with a
+  small fake executable that speaks the same command line and JSON, and runs one extra test against the
+  real scanner only when it is installed.
 
 ## Path B: an external scanner or gateway
 
@@ -130,13 +154,12 @@ class ExternalScannerAdapter(ABC):
 ```
 
 * **If the tool is not installed or configured, raise `AdapterUnavailableError`.** The orchestrator
-  reports the case as **skipped** — not scored, not a silent zero. This project ships one such adapter
+  reports the case as **skipped**: not scored, not a silent zero. This project ships one such adapter
   (`UnavailableExternalAdapter`, registered as `external-scanner`) as a documented placeholder: it always
-  raises, because no external scanner is integrated by default. Follow that pattern; never invent a
-  result to avoid a skip.
+  raises. Follow that pattern; never invent a result to avoid a skip.
 * If you do run the scenario through `ScenarioRunner` yourself inside `execute()` (so ground truth
-  exists), `blocked` will be verified normally. If your tool works entirely outside the runner — for
-  example, it scans a server independently and reports a verdict after the fact — `blocked` will always
+  exists), `blocked` will be verified normally. If your tool works entirely outside the runner (for
+  example, it scans a server independently and reports a verdict after the fact), `blocked` will always
   come back `False` with a limitation explaining why; that is expected and correct, not a bug to work
   around. Detection can still be scored normally as long as you build real `Finding` objects.
 * Any credentials, URLs, or configuration your adapter needs must come from environment variables (see
@@ -152,6 +175,7 @@ ADAPTER_FACTORIES: dict[str, AdapterFactory] = {
     NoDefenseBaselineAdapter.name: NoDefenseBaselineAdapter,
     ReferenceStaticAnalyzerAdapter.name: ReferenceStaticAnalyzerAdapter,
     ReferenceRuntimePolicyAdapter.name: ReferenceRuntimePolicyAdapter,
+    CiscoMcpScannerAdapter.name: CiscoMcpScannerAdapter,
     UnavailableExternalAdapter.name: UnavailableExternalAdapter,
     MyAdapter.name: MyAdapter,
 }
@@ -164,22 +188,22 @@ run --adapter my-control`, and `POST /runs`.
 
 A `Finding` needs, at minimum, a `category`, `severity`, `rule_id`, `title`, `detected_by`, and evidence
 (`evidence_json`, `evidence_event_ids`). Findings that don't match the test case's expected category, or
-that fall below the run's minimum severity, don't count toward `detected` — build findings that are
+that fall below the run's minimum severity, don't count toward `detected`. Build findings that are
 honest about what your control actually found, not tuned to match the test corpus.
 
 ## Validating a new adapter
 
-1. `guardbench list-adapters` — confirm it's registered.
-2. `guardbench benchmark run --no-persist --adapter my-control --case-id BN-001 --case-id BN-002` — it
+1. `guardbench list-adapters`: confirm it's registered.
+2. `guardbench benchmark run --no-persist --adapter my-control --case-id BN-001 --case-id BN-002 --case-id BN-003`: it
    must produce `false_positive_rate: 0%` on the benign controls before anything else is meaningful.
 3. `guardbench benchmark run --no-persist --adapter my-control --adapter no-defense-baseline` over the
-   full corpus — compare against the baseline (which must always show 0% detection/prevention) and
+   full corpus, and compare against the baseline (which must always show 0% detection/prevention) and
    against `reference-static`/`reference-runtime` to sanity-check the numbers.
-4. Read the resulting report's **Limitations** section for your adapter — it prints exactly the
+4. Read the resulting report's **Limitations** section for your adapter: it prints exactly the
    `limitations` tuple you set. Make sure it is honest and specific.
 5. Write tests for your guard/adapter the way `tests/unit/test_policy_engine.py` and
    `tests/integration/test_benchmark.py` test the reference ones: unit tests for the decision logic, an
    integration test that runs it through the real orchestrator against the fixtures.
 
-An adapter you write is, itself, unverified until it's been run against this corpus and reviewed — see
+An adapter you write is, itself, unverified until it's been run against this corpus and reviewed; see
 [limitations.md](limitations.md), item 9.

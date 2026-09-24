@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in the lab itself is broken (not a missed/false detection — see the other template).
+description: Something in the lab itself is broken (not a missed/false detection; see the other template).
 labels: [bug]
 body:
   - type: markdown
@@ -7,7 +7,7 @@ body:
       value: |
         Before filing: this is a **local security lab**. If a reference control missed an attack or
         flagged a benign case, that's expected and tracked in [docs/limitations.md](../../docs/limitations.md),
-        not a bug — use the "Detection result" template instead.
+        not a bug; use the "Detection result" template instead.
   - type: textarea
     id: what-happened
     attributes:
@@ -27,7 +27,7 @@ body:
     id: logs
     attributes:
       label: Relevant output
-      description: Paste error output here. Please double-check it doesn't contain a real secret or API key before posting — synthetic markers like `TEST_SECRET_123` are fine.
+      description: Paste error output here. Please double-check it doesn't contain a real secret or API key before posting. Synthetic markers like `TEST_SECRET_123` are fine.
       render: shell
   - type: input
     id: version

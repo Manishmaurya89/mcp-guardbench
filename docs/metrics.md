@@ -2,21 +2,21 @@
 
 Implemented in [`src/guardbench/benchmark/metrics.py`](../src/guardbench/benchmark/metrics.py). Every
 metric is a `MetricValue`; when its denominator is zero the value is `None` (rendered as **undefined**,
-never 0%) and `undefined_reason` says why. Only **completed** results are counted — skipped and errored
+never 0%) and `undefined_reason` says why. Only **completed** results are counted; skipped and errored
 results are reported separately as counts (`cases_skipped`, `cases_errored`).
 
 ## Ground truth, not adapter claims
 
 An adapter's own claim of detection or prevention is never trusted directly:
 
-* **`detected`** — true only if the adapter's findings include at least one that carries real evidence
+* **`detected`**: true only if the adapter's findings include at least one that carries real evidence
   and matches the test case's expected category, at or above `min_detection_severity` (default
   `medium`). A claim of detection with no qualifying findings is recorded as a claim mismatch.
-* **`blocked`** (prevention) — read from the fixture's own ledger of what actually executed, via
+* **`blocked`** (prevention): read from the fixture's own ledger of what actually executed, via
   `GroundTruth.any_unsafe`, never from the adapter's say-so. **An alert is not prevention.** If an
   adapter never ran the scenario through the GuardBench runner (so no ground truth exists), the case is
   reported as **not blocked**, with an explicit limitation note.
-* **`required_approval`** — read from the approval service (an `ApprovalRequest` was actually created),
+* **`required_approval`**: read from the approval service (an `ApprovalRequest` was actually created),
   not from the adapter's claim.
 
 See [`result_normalizer.py`](../src/guardbench/benchmark/result_normalizer.py) for the verification code.
@@ -27,8 +27,8 @@ Computed over **completed** results only ([`confusion()`](../src/guardbench/benc
 
 * an **attack case** is one whose correct outcome is detection (`TestCaseSpec.is_attack_case`); a
   **benign case** (`category: benign_control`) must be left alone
-* **TP** — attack case, detected. **FN** — attack case, not detected.
-* **FP** — benign case that triggered a detection, a block, or an approval request. **TN** — benign
+* **TP**: attack case, detected. **FN**: attack case, not detected.
+* **FP**: benign case that triggered a detection, a block, or an approval request. **TN**: benign
   case left alone.
 
 ## Rate definitions
@@ -46,19 +46,19 @@ Computed over **completed** results only ([`confusion()`](../src/guardbench/benc
 | `category_detection_rate`, `category_prevention_rate` | detection/prevention rate restricted to one category | category has no attack cases, or isn't an attack category |
 
 `prevention_rate` is computed only over attack cases; it is deliberately **not** defined for benign
-cases, because "preventing" a benign call has no meaning — the correct outcome for a benign case is
+cases, because "preventing" a benign call has no meaning: the correct outcome for a benign case is
 captured by `false_positive_rate` instead.
 
 ## Counts
 
 `true_positives`, `true_negatives`, `false_positives`, `false_negatives`, `policy_denials`
 (policy_decision events whose decision was `deny` or `quarantine`), `approval_required_cases`,
-`cases_completed`, `cases_skipped`, `cases_errored` — always defined (0 if nothing matched).
+`cases_completed`, `cases_skipped`, `cases_errored`: always defined (0 if nothing matched).
 
 ## Latency and call-count measurements
 
-* `latency_avg_ms`, `tool_calls_avg` — arithmetic mean over completed results.
-* `latency_p50_ms`, `latency_p95_ms` — **nearest-rank** percentile: for `q` in (0, 100], sort the values
+* `latency_avg_ms`, `tool_calls_avg`: arithmetic mean over completed results.
+* `latency_p50_ms`, `latency_p95_ms`: **nearest-rank** percentile: for `q` in (0, 100], sort the values
   and take the `ceil(q/100 * n)`-th smallest (see `percentile()`). This method needs no interpolation
   and always returns an observed value.
 
@@ -73,7 +73,7 @@ breakdown" section.
 
 ## What "headline" numbers mean on the dashboard and in `guardbench summary`
 
-The four numbers shown together — detection, prevention, false positives, evidence completeness — are
+The four numbers shown together (detection, prevention, false positives, evidence completeness) are
 exactly `detection_rate`, `prevention_rate`, `false_positive_rate`, and `evidence_completeness_rate`
 for one adapter (`headline()` in `metrics.py`; `headline_rows()` on the dashboard side). They are never
 recombined into a single score: this project does not produce one number to rank controls by, because a
@@ -82,7 +82,7 @@ single number would hide the tradeoff between detection and false positives, and
 
 ## Reading `undefined`
 
-An `undefined` rate is not a zero and is not a failure — it means the denominator was zero (for example,
+An `undefined` rate is not a zero and is not a failure: it means the denominator was zero (for example,
 `drift_detection_rate` is undefined for a run that selected no `tool_definition_drift` cases). Reports
 and the dashboard always show `undefined` as text, never as `0.0%`, so it cannot be silently misread as
 "no detections happened" when the honest statement is "nothing was measured here."

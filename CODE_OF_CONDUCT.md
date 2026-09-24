@@ -27,7 +27,7 @@ Examples of unacceptable behavior:
 * Publishing others' private information, such as a physical or email address, without their
   explicit permission
 * Using this project to test, scan, or attack systems you do not own or are not explicitly
-  authorized to test — see [SECURITY.md](SECURITY.md)
+  authorized to test; see [SECURITY.md](SECURITY.md)
 * Other conduct which could reasonably be considered inappropriate in a professional setting
 
 ## Enforcement responsibilities

@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Read [SECURITY.md](../../SECURITY.md) first if this involves anything that touches real
-        servers, real credentials, or real network access — this project only ever attacks its own
+        servers, real credentials, or real network access: this project only ever attacks its own
         local, synthetic fixtures, and any request that would weaken that boundary will be declined.
   - type: textarea
     id: problem

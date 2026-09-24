@@ -251,9 +251,9 @@ def test_approving_before_scanning_is_a_clear_404(client: TestClient) -> None:
 
 def test_test_cases_are_listed_filtered_and_fetched_by_either_id(client: TestClient) -> None:
     listing = client.get("/test-cases").json()
-    assert listing["total"] == 9
+    assert listing["total"] == 12
     poisoning = client.get("/test-cases", params={"category": "tool_poisoning"}).json()
-    assert {c["external_id"] for c in poisoning["items"]} == {"TP-001", "TP-002"}
+    assert {c["external_id"] for c in poisoning["items"]} == {"TP-001", "TP-002", "TP-003"}
     by_external = client.get("/test-cases/TP-001").json()
     assert (
         by_external["category"] == "tool_poisoning"
@@ -319,7 +319,7 @@ def test_full_run_lifecycle_and_persisted_results(client: TestClient) -> None:
 
     run = client.post(f"/runs/{run_id}/execute").json()
     assert run["status"] == "completed" and run["started_at"] and run["completed_at"]
-    assert run["summary_json"]["adapters"]["reference-runtime"]["prevention_rate"] == 1.0
+    assert run["summary_json"]["adapters"]["reference-runtime"]["prevention_rate"] == pytest.approx(8 / 9)
     assert "report" not in run["summary_json"], "the full report is served by its own endpoint"
     assert client.get(f"/runs/{run_id}").json()["status"] == "completed"
     assert client.get("/runs", params={"status": "completed"}).json()["total"] == 1
@@ -328,7 +328,7 @@ def test_full_run_lifecycle_and_persisted_results(client: TestClient) -> None:
     metrics = client.get(f"/runs/{run_id}/metrics", params={"adapter": "reference-static"}).json()
     by_name = {m["metric_name"]: m for m in metrics if "category" not in m["dimensions_json"]}
     assert by_name["prevention_rate"]["metric_value"] == 0.0
-    assert by_name["detection_rate"]["metric_value"] == pytest.approx(4 / 7)
+    assert by_name["detection_rate"]["metric_value"] == pytest.approx(4 / 9)
 
 
 def test_a_run_can_only_be_executed_once(client: TestClient) -> None:
@@ -385,7 +385,7 @@ def test_events_are_paginated_filtered_and_ordered_with_redacted_payloads_only(c
     pid = create_project(client)
     run_id = finished_run(client, pid)
     page = client.get(f"/runs/{run_id}/events", params={"limit": 10}).json()
-    assert page["total"] == 246 and len(page["items"]) == 10
+    assert page["total"] == 320 and len(page["items"]) == 10
     assert [e["sequence"] for e in page["items"]] == list(range(1, 11))
     assert all("payload_json" not in e or e.get("payload_json") is None for e in page["items"]), (
         "raw payloads never leave"
@@ -506,8 +506,10 @@ def test_the_dashboard_summary_reflects_stored_data(client: TestClient) -> None:
     register(client, pid, "poisoned_description_server")
     finished_run(client, pid)
     summary = client.get("/dashboard-summary").json()
-    assert summary["total_runs"] == 1 and summary["total_test_cases"] == 9 and summary["total_servers"] == 1
-    assert summary["detection_rate"] == 1.0 and summary["prevention_rate"] == 1.0
+    assert summary["total_runs"] == 1 and summary["total_test_cases"] == 12 and summary["total_servers"] == 1
+    assert summary["detection_rate"] == pytest.approx(7 / 9) and summary["prevention_rate"] == pytest.approx(
+        8 / 9
+    )
     assert summary["open_findings"] > 0 and summary["high_severity_findings"] > 0
     assert set(summary["latest_run_headlines"]) == set(ALL_ADAPTERS)
     assert "No external server has been scanned" in summary["notice"]

@@ -5,6 +5,7 @@
 #   make seed     register and scan the 8 local fixtures
 #   make demo     run the benchmark against the local reference fixtures
 #   make report   print the latest run's report (and write it to reports/latest/)
+#   make cisco-demo  also benchmark the open-source Cisco MCP Scanner (installed in its own venv)
 #
 # Works with GNU Make 3.81 (the version macOS ships).
 
@@ -34,7 +35,20 @@ endif
 
 REPORT_ADAPTERS = --adapter no-defense-baseline --adapter reference-static --adapter reference-runtime
 
-.PHONY: help setup env install test coverage lint format typecheck check seed demo report \
+# The Cisco MCP Scanner is a third-party control under test, not a dependency: it gets its own venv
+# because its dependency set (a pinned litellm, tree-sitter grammars, ...) would clash with ours.
+SCANNER_VENV          ?= .venv-scanners
+CISCO_SCANNER_VERSION ?= 4.8.4
+CISCO_SCANNER         := $(SCANNER_VENV)/bin/mcp-scanner
+ifeq ($(UV),)
+  INSTALL_CISCO = $(PYTHON) -m venv $(SCANNER_VENV) && $(SCANNER_VENV)/bin/python -m pip install --quiet \
+                  "cisco-ai-mcp-scanner==$(CISCO_SCANNER_VERSION)"
+else
+  INSTALL_CISCO = $(UV) venv $(SCANNER_VENV) --python $(PYTHON_VERSION) --quiet && $(UV) pip install --quiet \
+                  --python $(SCANNER_VENV)/bin/python "cisco-ai-mcp-scanner==$(CISCO_SCANNER_VERSION)"
+endif
+
+.PHONY: help setup env install test coverage lint format typecheck check seed demo cisco-demo report \
         serve dashboard test-postgres docker-config docker-up docker-down docker-logs docker-seed \
         docker-demo clean reset-db
 
@@ -101,6 +115,13 @@ seed: install ## Create the schema and register/scan the 8 local fixtures (idemp
 
 demo: seed ## Benchmark the 3 reference adapters on the local fixtures -> reports/demo-run/
 	$(PY) scripts/run_demo.py
+
+$(CISCO_SCANNER):
+	$(INSTALL_CISCO)
+
+cisco-demo: seed $(CISCO_SCANNER) ## Also benchmark the Cisco MCP Scanner (own venv, offline) -> reports/cisco-demo/
+	GUARDBENCH_CISCO_MCP_SCANNER=$(CISCO_SCANNER) $(GB) benchmark run --project demo --cases test_cases/ \
+	    $(REPORT_ADAPTERS) --adapter cisco-mcp-scanner --output reports/cisco-demo/
 
 report: install ## Print the latest run's Markdown report; write JSON/Markdown/CSV to reports/latest/
 	$(PY) scripts/generate_report.py

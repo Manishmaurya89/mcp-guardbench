@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         This is the most useful kind of issue for this project. Please include enough for someone to
-        reproduce your exact run — see [docs/metrics.md](../../docs/metrics.md) for how detection and
+        reproduce your exact run. See [docs/metrics.md](../../docs/metrics.md) for how detection and
         prevention are defined and verified.
   - type: dropdown
     id: kind

@@ -115,18 +115,18 @@ def test_overview_shows_totals_and_the_headline_rates(seeded: TestClient) -> Non
     metrics = {m.label: m.value for m in at.metric}
     assert (
         metrics["Benchmark runs"] == "1"
-        and metrics["Test cases"] == "9"
-        and metrics["Servers registered"] == "8"
+        and metrics["Test cases"] == "12"
+        and metrics["Servers registered"] == "11"
     )
-    assert metrics["Detection rate"] == "100.0%" and metrics["Prevention rate"] == "100.0%"
+    assert metrics["Detection rate"] == "77.8%" and metrics["Prevention rate"] == "88.9%"
     assert int(metrics["Open findings"]) > 0 and int(metrics["High-severity findings"]) > 0
     table = at.dataframe[0].value.set_index("Adapter")
     assert table.loc["no-defense-baseline", "Prevention"] == "0.0%"
     assert (
         table.loc["reference-static", "Prevention"] == "0.0%"
-        and table.loc["reference-static", "Detection"] == "57.1%"
+        and table.loc["reference-static", "Detection"] == "44.4%"
     )
-    assert table.loc["reference-runtime", "Detection"] == "100.0%"
+    assert table.loc["reference-runtime", "Detection"] == "77.8%"
 
 
 def test_overview_on_an_empty_database_says_undefined_not_zero(client: TestClient) -> None:
@@ -152,10 +152,13 @@ def test_benchmark_runs_page_lists_runs_and_shows_metrics_and_results(seeded: Te
     assert "completed" in text and "reference-runtime" in text
     assert "Per-category breakdown" in text and "Skipped" in text
     results = next(f.value for f in at.dataframe if "Expectation met" in f.value.columns)
-    assert len(results) == 27
+    assert len(results) == 36
     attack = ~results["Case"].str.startswith("BN")
-    runtime = results[(results["Adapter"] == "reference-runtime") & attack]
+    hard = results["Case"].isin(["DF-002", "TP-003"])  # added to probe documented gaps
+    runtime = results[(results["Adapter"] == "reference-runtime") & attack & ~hard]
     assert len(runtime) == 7 and runtime["Prevented"].all() and runtime["Expectation met"].all()
+    runtime_hard = results[(results["Adapter"] == "reference-runtime") & hard]
+    assert len(runtime_hard) == 2 and not runtime_hard["Expectation met"].any()
     controls = results[(results["Adapter"] == "reference-runtime") & ~attack]
     assert not controls["Prevented"].any() and controls["Expectation met"].all(), (
         "nothing to prevent in a control"
@@ -196,7 +199,7 @@ def test_tool_inventory_shows_servers_tools_hashes_and_approval_state(seeded: Te
     at = go(open_dashboard(seeded), "Tool Inventory")
     assert_healthy(at)
     servers = at.dataframe[0].value.set_index("Server")
-    assert len(servers) == 8
+    assert len(servers) == 11
     assert (
         servers.loc["drift_server", "Trust"] == "quarantined"
         and servers.loc["drift_server", "Lab phase"] == 1

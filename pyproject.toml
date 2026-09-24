@@ -10,7 +10,7 @@ readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.12"
 authors = [{ name = "MCP-GuardBench contributors" }]
-keywords = ["mcp", "security", "benchmark", "agents", "tool-poisoning"]
+keywords = ["mcp", "model-context-protocol", "security", "benchmark", "agents", "tool-poisoning", "rug-pull", "scanner"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -32,6 +32,12 @@ dependencies = [
     "jsonschema>=4.20",
     "mcp>=2.2,<3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Manishmaurya89/mcp-guardbench"
+Repository = "https://github.com/Manishmaurya89/mcp-guardbench"
+Issues = "https://github.com/Manishmaurya89/mcp-guardbench/issues"
+Changelog = "https://github.com/Manishmaurya89/mcp-guardbench/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dashboard = ["streamlit>=1.40"]

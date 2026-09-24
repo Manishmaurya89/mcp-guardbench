@@ -70,7 +70,7 @@ async def test_the_json_report_has_every_required_section() -> None:
         assert key in report, key
     assert report["configuration"]["seed"] == 5
     assert [a["name"] for a in report["adapters"]] == list(ADAPTERS)
-    assert len(report["test_cases"]) == 9 and len(report["results"]) == 36
+    assert len(report["test_cases"]) == 12 and len(report["results"]) == 48
 
 
 async def test_reproducibility_and_software_versions_are_recorded() -> None:
@@ -96,13 +96,14 @@ async def test_failed_skipped_and_finding_sections_are_populated_honestly() -> N
     report = await make_report()
     failed = {(f["adapter"], f["test_case_id"]) for f in report.failed_tests}
     assert all(("no-defense-baseline", c) in failed for c in ("TP-001", "DF-001", "PA-001", "RS-001"))
-    assert not any(a == "reference-runtime" for a, _ in failed), "the runtime adapter meets every expectation"
+    runtime_failed = {c for a, c in failed if a == "reference-runtime"}
+    assert runtime_failed == {"DF-002", "TP-003"}, "the runtime misses only the documented hard cases"
     assert ("reference-static", "PA-001") in failed, (
         "detected but not prevented is still a failed expectation"
     )
     assert {s["adapter"] for s in report.skipped_tests} == {"external-scanner"} and len(
         report.skipped_tests
-    ) == 9
+    ) == 12
     assert all("no external scanner" in (s["reason"] or "") for s in report.skipped_tests)
     assert report.findings and all(f["rule_id"] and f["remediation"] for f in report.findings)
 
@@ -148,9 +149,9 @@ async def test_reports_are_deterministic_apart_from_timing_and_ids() -> None:
 
 async def test_report_summary_holds_the_headline_numbers() -> None:
     summary = report_summary(await make_outcome())
-    assert summary["cases"] == 9 and summary["results"] == 36
-    assert summary["skipped"] == 9 and summary["errored"] == 0 and summary["completed"] == 27
-    assert summary["adapters"]["reference-runtime"]["prevention_rate"] == 1.0
+    assert summary["cases"] == 12 and summary["results"] == 48
+    assert summary["skipped"] == 12 and summary["errored"] == 0 and summary["completed"] == 36
+    assert summary["adapters"]["reference-runtime"]["prevention_rate"] == pytest.approx(8 / 9)
     assert summary["adapters"]["reference-static"]["prevention_rate"] == 0.0
     assert summary["adapters"]["external-scanner"]["detection_rate"] is None
 
@@ -201,7 +202,7 @@ async def test_csv_has_one_row_per_result_and_neutralizes_formula_injection() ->
     )
     rows = list(csv.reader(io.StringIO(to_csv(build_report(outcome, generated_at=utc_now())))))
     assert rows[0][:3] == ["adapter", "test_case_id", "status"]
-    assert len(rows) == 1 + 36
+    assert len(rows) == 1 + 48
     cell = rows[1][-1]
     assert cell.startswith("'"), "a cell beginning with = + - @ must not be executable in a spreadsheet"
     latency_column = rows[0].index("latency_ms")
