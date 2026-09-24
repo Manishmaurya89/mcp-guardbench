@@ -1,0 +1,162 @@
+# MCP-GuardBench: local security lab.
+#
+#   cp .env.example .env   (or `make setup`, which also generates a random API key and DB password)
+#   docker compose up --build
+#   make seed && make demo
+#
+# Safety defaults (see docs/architecture.md):
+#   * no privileged containers, no Docker socket, all capabilities dropped, no-new-privileges
+#   * non-root user, read-only root filesystems (tmpfs for /tmp), resource limits
+#   * ports are published on the host loopback only
+#   * `backend` is an internal network with NO route to the outside: PostgreSQL and the
+#     test-runner (where the attack fixtures run) cannot reach the internet
+#   * the API needs an API key (dev mode is off); the key comes from .env, never from this file
+
+x-hardened: &hardened
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+
+x-app-env: &app-env
+  GUARDBENCH_DATABASE_URL: postgresql://${POSTGRES_USER:-guardbench}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-guardbench}
+  GUARDBENCH_DEV_MODE: "false"
+  GUARDBENCH_API_KEY: ${GUARDBENCH_API_KEY:?set GUARDBENCH_API_KEY in .env}
+  GUARDBENCH_LOG_LEVEL: ${GUARDBENCH_LOG_LEVEL:-INFO}
+  GUARDBENCH_MAX_RESPONSE_BYTES: ${GUARDBENCH_MAX_RESPONSE_BYTES:-4096}
+  GUARDBENCH_MAX_CALLS_PER_TRACE: ${GUARDBENCH_MAX_CALLS_PER_TRACE:-10}
+
+services:
+  postgres:
+    <<: *hardened
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-guardbench}
+      POSTGRES_USER: ${POSTGRES_USER:-guardbench}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    tmpfs:
+      - /tmp
+      - /run/postgresql
+    # The postgres image starts as root, chowns its data directory, then drops to its own user.
+    # Everything is dropped (inherited from x-hardened) and only those five capabilities come back.
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    networks: [backend]
+    mem_limit: 512m
+    pids_limit: 200
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-guardbench} -d ${POSTGRES_DB:-guardbench}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  migrate:
+    build: .
+    image: mcp-guardbench:local
+    command: ["init-db"]
+    environment: *app-env
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend]
+    restart: "no"
+    mem_limit: 256m
+    healthcheck:
+      disable: true
+
+  api:
+    <<: *hardened
+    build: .
+    image: mcp-guardbench:local
+    command: ["serve", "--host", "0.0.0.0", "--port", "8000"]
+    environment: *app-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${GUARDBENCH_API_PORT:-8000}:8000"
+    networks: [edge, backend]   # `edge` exists only so the published port works; the API never dials out
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 200
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  dashboard:
+    <<: *hardened
+    build: .
+    image: mcp-guardbench:local
+    command: ["dashboard", "--host", "0.0.0.0", "--port", "8501"]
+    environment:
+      GUARDBENCH_API_URL: http://api:8000
+      GUARDBENCH_API_KEY: ${GUARDBENCH_API_KEY:?set GUARDBENCH_API_KEY in .env}
+      GUARDBENCH_LOG_LEVEL: ${GUARDBENCH_LOG_LEVEL:-INFO}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${GUARDBENCH_DASHBOARD_PORT:-8501}:8501"
+    networks: [edge, backend]
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 200
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  # One-shot tool container: `docker compose run --rm test-runner <guardbench command>`.
+  # This is where the attack fixtures run for `make seed` / `make demo` in Docker mode. It sits on the
+  # internal network only, so it has no route to the internet.
+  test-runner:
+    build: .
+    image: mcp-guardbench:local
+    profiles: [tools]
+    environment: *app-env
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - ./reports:/app/reports
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [backend]
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 200
+    restart: "no"
+    healthcheck:
+      disable: true
+
+networks:
+  edge:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true   # no route to the outside world
+
+volumes:
+  pgdata:

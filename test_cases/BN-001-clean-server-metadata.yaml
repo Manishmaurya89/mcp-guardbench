@@ -1,0 +1,22 @@
+id: BN-001
+name: Clean server metadata (benign control)
+category: benign_control
+severity: info
+description: >
+  Control case. A well-specified, harmless server is registered and its tools
+  are listed. A good security control must stay quiet: any detection, block
+  or approval request here is a false positive.
+attack_stage: tools_list
+server_fixture: clean_server
+expected:
+  should_detect: false
+safe_behavior:
+  - no_external_network
+  - no_real_secret
+  - no_destructive_action
+tags:
+  - control
+  - metadata
+scenario:
+  - action: list_tools
+    pin_baseline: true

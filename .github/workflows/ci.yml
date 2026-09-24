@@ -1,0 +1,75 @@
+# CI for a local security lab: everything here runs against this repository's own fixtures
+# and its own Docker Compose stack on the runner. Nothing in this workflow contacts an
+# external server.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: lint, typecheck, test (SQLite, Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: make check
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+      - run: make coverage
+        if: matrix.python-version == '3.12'
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+
+  postgres:
+    name: full suite against real PostgreSQL (embedded, no Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: make install EXTRAS=dev,dashboard,pgtest
+      - run: .venv/bin/python scripts/test_postgres.py -q
+
+  docker:
+    name: Docker image build + Compose smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker-compose.yml statically
+        run: docker compose config --quiet
+      - name: Generate local-lab-only credentials for this CI run
+        run: python3 scripts/bootstrap_env.py
+      - name: Build the image
+        run: docker compose build
+      - name: Start postgres, api, dashboard
+        run: docker compose up -d --wait --wait-timeout 180
+      - name: Health checks
+        run: |
+          curl -sf http://127.0.0.1:8000/health
+          curl -sf http://127.0.0.1:8501/_stcore/health
+      - name: Seed and run the demo inside the isolated test-runner container
+        run: |
+          docker compose --profile tools run --rm test-runner seed-demo
+          docker compose --profile tools run --rm test-runner benchmark run \
+            --project demo --cases test_cases/ \
+            --adapter no-defense-baseline --adapter reference-static --adapter reference-runtime \
+            --output reports/ci-demo
+      - name: Container logs (on failure)
+        if: failure()
+        run: docker compose logs
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

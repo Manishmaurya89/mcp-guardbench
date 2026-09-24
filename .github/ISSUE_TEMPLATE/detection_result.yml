@@ -1,0 +1,50 @@
+name: Detection result / false positive / false negative
+description: A reference control (or a corpus test case) behaved in a way you think is wrong.
+labels: [detection]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most useful kind of issue for this project. Please include enough for someone to
+        reproduce your exact run — see [docs/metrics.md](../../docs/metrics.md) for how detection and
+        prevention are defined and verified.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of result?
+      options:
+        - False negative (an attack case was not detected/blocked when it should have been)
+        - False positive (a benign case triggered a detection/block/approval)
+        - Something else looks wrong in a report or the dashboard
+    validations:
+      required: true
+  - type: input
+    id: case
+    attributes:
+      label: Test case and adapter
+      description: e.g. `TP-001` under `reference-static`
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command used
+      render: shell
+      description: e.g. `guardbench benchmark run --adapter reference-static --case-id TP-001`
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Relevant report excerpt or trace
+      description: Output of `guardbench trace --latest --adapter ... --case ...`, or the relevant report rows.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why you think this is wrong
+      description: What you expected the control (or the case's `expected:` block) to say, and why.
+    validations:
+      required: true

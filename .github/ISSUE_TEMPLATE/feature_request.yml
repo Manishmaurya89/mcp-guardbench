@@ -1,0 +1,27 @@
+name: Feature request
+description: A new fixture, adapter, metric, or capability you'd like to see.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read [SECURITY.md](../../SECURITY.md) first if this involves anything that touches real
+        servers, real credentials, or real network access — this project only ever attacks its own
+        local, synthetic fixtures, and any request that would weaken that boundary will be declined.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to see?
+      description: A new fixture (docs/limitations.md and mcp_lab/servers/README.md describe the constraints), a new adapter (see docs/adapter-development.md), a new metric, something else?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
