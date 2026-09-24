@@ -153,7 +153,7 @@ Fail a pull request when a project's MCP servers get a poisoned or changed tool:
 ```yaml
 # .github/workflows/mcp-check.yml (the repository has .mcp.json and a committed guardbench-pins.json)
 - uses: actions/checkout@v7
-- uses: astral-sh/setup-uv@v10
+- uses: astral-sh/setup-uv@v10.2.0
 - run: uvx --from git+https://github.com/Manishmaurya89/mcp-guardbench guardbench inspect .mcp.json --fail-on high
 ```
 
