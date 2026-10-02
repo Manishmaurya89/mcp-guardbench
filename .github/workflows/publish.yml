@@ -1,0 +1,50 @@
+# Publishes to PyPI using Trusted Publishing (OIDC) -- no API token is stored in this repo.
+# Triggers only when a GitHub Release is published, never on an ordinary push, so a release is
+# always a deliberate, reviewable action, not a side effect of merging code.
+#
+# One-time setup required on pypi.org before this can succeed (see README/CONTRIBUTING):
+#   pypi.org -> your account -> Publishing -> "Add a pending publisher"
+#     PyPI project name : mcp-guardbench
+#     Owner              : Manishmaurya89
+#     Repository name     : mcp-guardbench
+#     Workflow name        : publish.yml
+#     Environment (optional, recommended): pypi
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - run: uv build
+      - name: Verify the built distributions (same check PyPI runs)
+        run: uvx twine check dist/*
+      - uses: actions/upload-artifact@v5
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mcp-guardbench
+    permissions:
+      id-token: write  # required for Trusted Publishing; no secret token used or needed
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
