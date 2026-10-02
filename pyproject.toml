@@ -23,7 +23,11 @@ dependencies = [
     "uvicorn>=0.31",
     "pydantic>=2.12,<3",
     "pydantic-settings>=2.6",
-    "sqlalchemy>=2.0.36,<3",
+    # SQLAlchemy 2.1 changed the static type of select(SingleModel) (Select[Model] instead of
+    # Select[tuple[Model]]); this codebase's strict mypy types target 2.0's shape, and the full
+    # test suite (incl. real-Postgres/JSONB/migration checks) has only been verified against 2.0.x.
+    # Capped until 2.1 is deliberately evaluated, not picked up silently by an unpinned install.
+    "sqlalchemy>=2.0.36,<2.1",
     "alembic>=1.14",
     "psycopg[binary]>=3.2",
     "pyyaml>=6.0",
