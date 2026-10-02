@@ -9,14 +9,20 @@ description = "An evidence-based benchmark and runtime evaluation framework for 
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.12"
-authors = [{ name = "MCP-GuardBench contributors" }]
+authors = [{ name = "Manish Maurya", email = "manish.maurya0408@gmail.com" }]
 keywords = ["mcp", "model-context-protocol", "security", "benchmark", "agents", "tool-poisoning", "rug-pull", "scanner"]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Security",
+    "Topic :: Software Development :: Testing",
+    "Environment :: Console",
 ]
 dependencies = [
     "fastapi>=0.115",

@@ -50,7 +50,7 @@ endif
 
 .PHONY: help setup env install test coverage lint format typecheck check seed demo cisco-demo report \
         serve dashboard test-postgres docker-config docker-up docker-down docker-logs docker-seed \
-        docker-demo clean reset-db
+        docker-demo build publish-check clean reset-db
 
 help: ## Show this help
 	@echo "MCP-GuardBench: local security lab (no external server is ever scanned)"
@@ -152,6 +152,15 @@ docker-seed: .env ## Seed the demo data inside the isolated test-runner containe
 docker-demo: docker-seed ## Run the demo benchmark inside the isolated test-runner container
 	docker compose --profile tools run --rm --user "$$(id -u):$$(id -g)" test-runner \
 	    benchmark run --project demo --cases test_cases/ $(REPORT_ADAPTERS) --output reports/docker-demo/
+
+# ---------------------------------------------------------------- packaging
+
+build: install ## Build the sdist + wheel into dist/
+	rm -rf dist
+	uv build
+
+publish-check: build ## Build and validate the package the way PyPI does (no upload)
+	uvx twine check dist/*
 
 # ---------------------------------------------------------------- housekeeping
 
