@@ -21,6 +21,24 @@ MCP-GuardBench does two things:
 > benchmark only ever runs against its own fixtures. Read [docs/limitations.md](docs/limitations.md)
 > before relying on any result.
 
+```mermaid
+flowchart TD
+    subgraph INSPECT["① guardbench inspect — check servers you already use"]
+        A1["Your MCP client config<br/>(Claude / Cursor / VS Code / Windsurf)"] --> A2["Start each server<br/>exactly as your client would"]
+        A2 --> A3["tools/list only —<br/>never calls a tool"]
+        A3 --> A4["Static rules:<br/>poisoning · schema risk · shadowing"]
+        A4 --> A5["Compare to pinned fingerprints"]
+        A5 --> A6["Findings + exit code<br/>(fails CI on --fail-on)"]
+    end
+
+    subgraph BENCH["② guardbench benchmark run — the lab"]
+        B1["11 fake vulnerable<br/>MCP servers"] --> B2["Scripted, deterministic agent<br/>plays a test case"]
+        B2 --> B3["Security control under test<br/>sees every step (Guard hooks)"]
+        B3 --> B4["Fixture's own ledger records<br/>what actually executed"]
+        B4 --> B5["Detection + prevention<br/>verified from ground truth"]
+    end
+```
+
 ## Contents
 
 1. [Check your own MCP servers](#1-check-your-own-mcp-servers)
@@ -255,16 +273,26 @@ ground-truth ledger of what actually executed, never from a control's own claim.
 
 ## 5. Architecture
 
-```
-CLI (Typer)  ·  API (FastAPI, thin routes)  ·  Dashboard (Streamlit, read-only over HTTP)
-                              │
-          services/  (orchestration glue)      inspection/  (guardbench inspect: your own servers, read-only)
-                              │                        │
-      benchmark/  ·  analysis/  ·  policy/  ◀──────────┘   (execution, pure static analysis, deterministic policy)
-                              │
-        mcp_lab/  ·  runtime/  ·  db/        (11 local fixtures, redaction+evidence, SQLAlchemy/Alembic)
-                              │
-                          domain/            (enums, Pydantic v2 schemas, errors; no framework import)
+```mermaid
+flowchart TD
+    CLI["CLI (Typer)"]
+    API["API (FastAPI, thin routes)"]
+    DASH["Dashboard (Streamlit, read-only over HTTP)"]
+    SVC["services/ (orchestration glue)"]
+    INSP["inspection/ (guardbench inspect: your own servers, read-only)"]
+    CORE["benchmark/ · analysis/ · policy/ (execution, static analysis, deterministic policy)"]
+    LAB["mcp_lab/ · runtime/ · db/ (11 local fixtures, redaction+evidence, SQLAlchemy/Alembic)"]
+    DOMAIN["domain/ (enums, Pydantic v2 schemas, errors — no framework import)"]
+
+    DASH -. "GET only, no DB creds" .-> API
+    CLI --> SVC
+    API --> SVC
+    CLI --> INSP
+    SVC --> CORE
+    INSP --> CORE
+    CORE --> LAB
+    LAB --> DOMAIN
+    CORE --> DOMAIN
 ```
 
 Domain has no dependency on FastAPI or the database; analysis is pure functions with no hidden I/O;

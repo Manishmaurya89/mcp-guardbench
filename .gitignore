@@ -33,3 +33,6 @@ reports/*
 .idea/
 .vscode/
 .DS_Store
+
+# Personal notes (audits, interview prep) - never meant for the public repo
+AUDIT_REPORT.md
