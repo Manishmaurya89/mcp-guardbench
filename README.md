@@ -21,22 +21,25 @@ MCP-GuardBench does two things:
 > benchmark only ever runs against its own fixtures. Read [docs/limitations.md](docs/limitations.md)
 > before relying on any result.
 
+#### ① `guardbench inspect` — check servers you already use
+
 ```mermaid
 flowchart TD
-    subgraph INSPECT["① guardbench inspect — check servers you already use"]
-        A1["Your MCP client config<br/>(Claude / Cursor / VS Code / Windsurf)"] --> A2["Start each server<br/>exactly as your client would"]
-        A2 --> A3["tools/list only —<br/>never calls a tool"]
-        A3 --> A4["Static rules:<br/>poisoning · schema risk · shadowing"]
-        A4 --> A5["Compare to pinned fingerprints"]
-        A5 --> A6["Findings + exit code<br/>(fails CI on --fail-on)"]
-    end
+    A1["Your MCP client config<br/>(Claude / Cursor / VS Code / Windsurf)"] --> A2["Start each server<br/>exactly as your client would"]
+    A2 --> A3["tools/list only —<br/>never calls a tool"]
+    A3 --> A4["Static rules:<br/>poisoning · schema risk · shadowing"]
+    A4 --> A5["Compare to pinned fingerprints"]
+    A5 --> A6["Findings + exit code<br/>(fails CI on --fail-on)"]
+```
 
-    subgraph BENCH["② guardbench benchmark run — the lab"]
-        B1["11 fake vulnerable<br/>MCP servers"] --> B2["Scripted, deterministic agent<br/>plays a test case"]
-        B2 --> B3["Security control under test<br/>sees every step (Guard hooks)"]
-        B3 --> B4["Fixture's own ledger records<br/>what actually executed"]
-        B4 --> B5["Detection + prevention<br/>verified from ground truth"]
-    end
+#### ② `guardbench benchmark run` — the lab
+
+```mermaid
+flowchart TD
+    B1["11 fake vulnerable<br/>MCP servers"] --> B2["Scripted, deterministic agent<br/>plays a test case"]
+    B2 --> B3["Security control under test<br/>sees every step (Guard hooks)"]
+    B3 --> B4["Fixture's own ledger records<br/>what actually executed"]
+    B4 --> B5["Detection + prevention<br/>verified from ground truth"]
 ```
 
 ## Contents
