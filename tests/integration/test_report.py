@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import re
+from importlib import metadata
 from pathlib import Path
 
 import pytest
@@ -79,7 +80,8 @@ async def test_reproducibility_and_software_versions_are_recorded() -> None:
     assert len(repro["policy_sha256"]) == 64 and len(repro["test_corpus_sha256"]) == 64
     assert repro["policy_id"] == "guardbench-default" and repro["mode"] == "unattended"
     assert "clean_server" in repro["fixtures"]
-    assert report.software_versions["mcp"] == "2.2.0" and report.software_versions["python"].startswith("3.")
+    assert report.software_versions["mcp"] == metadata.version("mcp")
+    assert report.software_versions["python"].startswith("3.")
     assert "mcp-guardbench" in report.software_versions
 
 

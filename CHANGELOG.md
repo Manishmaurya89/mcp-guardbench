@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the project uses
 [Semantic Versioning](https://semver.org/) and is pre-1.0, so minor versions may change behavior.
 
+## [Unreleased]
+
+### Fixed
+
+- A report test expected exactly `mcp` 2.2.0 and failed with 2.3.0. It now compares against the
+  installed version.
+
 ## [0.1.0] - 2026-10-02
 
 First public release.

@@ -1,6 +1,7 @@
 # MCP-GuardBench
 
 [![CI](https://github.com/Manishmaurya89/mcp-guardbench/actions/workflows/ci.yml/badge.svg)](https://github.com/Manishmaurya89/mcp-guardbench/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/mcp-guardbench)](https://pypi.org/project/mcp-guardbench/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)](pyproject.toml)
 
@@ -65,12 +66,14 @@ flowchart TD
 ## 1. Check your own MCP servers
 
 ```bash
-git clone https://github.com/Manishmaurya89/mcp-guardbench && cd mcp-guardbench
-make setup                                             # or: uv tool install git+https://github.com/Manishmaurya89/mcp-guardbench
+pip install mcp-guardbench                  # or: uv tool install mcp-guardbench
 
-.venv/bin/guardbench inspect --discover                # every server your MCP clients have configured
-.venv/bin/guardbench inspect ~/.cursor/mcp.json        # or one config file
+guardbench inspect --discover               # every server your MCP clients have configured
+guardbench inspect ~/.cursor/mcp.json       # or one config file
 ```
+
+To work from source instead, run `git clone https://github.com/Manishmaurya89/mcp-guardbench && cd mcp-guardbench && make setup`
+and use `.venv/bin/guardbench`.
 
 **What it checks.** Each tool's name, description, input and output schemas, annotations and `_meta`,
 plus the server's `instructions`, using the same deterministic rules the benchmark evaluates: hidden
